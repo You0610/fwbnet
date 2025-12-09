@@ -15,7 +15,7 @@ Key Features:
 - Multi-step ahead prediction
 
 Author: fwbnet
-Date: 2025
+Date: 2024-2025
 """
 
 import torch
@@ -348,8 +348,10 @@ class PowerLoadForecastingModel(nn.Module):
         Args:
             x: Input tensor of shape [batch_size, seq_len, enc_in]
                Contains historical power load and related features
-            external_features: Optional tensor of shape [batch_size, seq_len, n_features]
-                             External features like holidays, special events
+            external_features: Optional tensor of shape [batch_size, seq_len, d_model]
+                             Pre-embedded external features like holidays, special events.
+                             Must be already embedded to d_model dimension.
+                             If shape is [batch_size, seq_len, enc_in], it will be embedded.
             return_attention: Whether to return attention weights for visualization
         
         Returns:
@@ -417,7 +419,18 @@ class PowerLoadForecastingModel(nn.Module):
         
         # 10. Optional: Incorporate external features
         if external_features is not None and self.config.use_holiday_features:
-            ext_embed = self.input_embedding(external_features)  # [B, L, d_model]
+            # Check if external_features need embedding
+            if external_features.shape[-1] == self.config.enc_in:
+                # External features have same dimension as input, need embedding
+                ext_embed = self.input_embedding(external_features)  # [B, L, d_model]
+            elif external_features.shape[-1] == self.config.d_model:
+                # External features are already embedded to d_model
+                ext_embed = external_features
+            else:
+                raise ValueError(
+                    f"external_features last dimension must be either {self.config.enc_in} "
+                    f"or {self.config.d_model}, got {external_features.shape[-1]}"
+                )
             ext_processed = self.holiday_processor(ext_embed)
             enhanced_features = enhanced_features + ext_processed
         
